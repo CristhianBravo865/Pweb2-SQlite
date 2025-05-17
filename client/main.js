@@ -1,82 +1,16 @@
-function fetchWikidataInfo(actorName) {
-    const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(actorName)}&language=es&format=json&origin=*`;
+let googleChartsReady = false;
 
-    fetch(url)
-        .then(res => res.json())
-        .then(data => {
-            if (data.search && data.search.length > 0) {
-                const qid = data.search[0].id;
-                getWikidataDetails(qid);
-            } else {
-                displayActorInfo(actorName, null, null);
-            }
-        })
-        .catch(err => console.error('Error en búsqueda Wikidata:', err));
-}
-
-function getWikidataDetails(qid) {
-    const url = `https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`;
-
-    fetch(url)
-        .then(res => res.json())
-        .then(data => {
-            const entity = data.entities[qid];
-            const claims = entity.claims;
-            // Imagen
-            let image = null;
-            if (claims.P18 && claims.P18[0]) {
-                const filename = claims.P18[0].mainsnak.datavalue.value;
-                image = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}`;
-            }
-            // Nombre
-            const label = entity.labels.es?.value || entity.labels.en?.value || '';
-            // Título del artículo en Wikipedia
-            const wikipediaTitle = entity.sitelinks?.eswiki?.title || entity.sitelinks?.enwiki?.title;
-            
-            if (wikipediaTitle) {
-                fetchWikipediaIntro(wikipediaTitle, image, label);
-            } else {
-                displayActorInfo(label, image, null);
-            }
-        })
-        .catch(err => console.error('Error obteniendo datos Wikidata:', err));
-}
-
-
-function fetchWikipediaIntro(title, image, label) {
-    const url = `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-
-    fetch(url)
-        .then(res => res.json())
-        .then(data => {
-            const extract = data.extract || 'No hay biografía disponible.';
-            displayActorInfo(label, image, extract);
-        })
-        .catch(err => {
-            console.error('Error obteniendo Wikipedia:', err);
-            displayActorInfo(label, image, null);
-        });
-}
-
-function displayActorInfo(name, image, bio) {
-    document.getElementById('actor-name').textContent = name;
-    const img = document.getElementById('actor-image');
-    if (image) {
-        img.src = image;
-        img.style.display = 'block';
-    } else {
-        img.style.display = 'none';
-    }
-    document.getElementById('actor-bio').textContent = bio || 'No hay biografía disponible.';
-}
+google.charts.load('current', { packages: ['corechart'] });
+google.charts.setOnLoadCallback(() => {
+    googleChartsReady = true;
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('actor-input');
     const suggestions = document.getElementById('actor-suggestions');
     const table = document.getElementById('film-table');
+    const tbody = table.querySelector('tbody');
     const chartDiv = document.getElementById('chart_div');
-
-    let selectedActorId = null;
 
     input.addEventListener('input', () => {
         const query = input.value.trim();
@@ -92,10 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     li.textContent = actor.name;
                     li.addEventListener('click', () => {
                         input.value = actor.name;
-                        selectedActorId = actor.id;
                         suggestions.innerHTML = '';
-                        loadFilmography(actor.id);
-                        fetchWikidataInfo(actor.name);
+                        loadAll(actor.name, actor.id);
                     });
                     suggestions.appendChild(li);
                 });
@@ -103,74 +35,113 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.error('Error en búsqueda de actores:', err));
     });
 
-    function loadFilmography(actorId) {
-        fetch(`/filmography/${actorId}`)
-            .then(response => response.json())
-            .then(films => {
-                // === TABLA ===
-                const tableBody = document.querySelector('#film-table tbody');
-                tableBody.innerHTML = '';
+    function loadAll(actorName, actorId) {
+        // Mensaje de cargando
+        displayActorInfo('Cargando...', null, 'Buscando biografía...');
+        tbody.innerHTML = '';
+        table.style.display = 'none';
+        chartDiv.style.display = 'none';
 
-                const filmsByYear = {};
-                films.forEach(film => {
-                    if (!filmsByYear[film.year]) {
-                        filmsByYear[film.year] = [];
-                    }
-                    filmsByYear[film.year].push({
-                        title: film.title,
-                        coactors: film.coactors || 'N/A'
+        Promise.all([
+            getWikidataBioAndImage(actorName),
+            fetch(`/filmography/${actorId}`).then(res => res.json())
+        ]).then(([wikidata, filmography]) => {
+            // Mostrar bio e imagen
+            displayActorInfo(actorName, wikidata.image, wikidata.bio);
+
+            const waitForCharts = () => {
+                if (googleChartsReady) {
+                    // Mostrar tabla
+                    tbody.innerHTML = '';
+                    filmography.forEach(film => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${film.year}</td>
+                            <td>${film.title}</td>
+                            <td>${film.coactors}</td>
+                        `;
+                        tbody.appendChild(tr);
                     });
-                });
-
-                Object.keys(filmsByYear).sort().forEach(year => {
-                    filmsByYear[year].forEach(film => {
-                        const row = document.createElement('tr');
-
-                        const yearCell = document.createElement('td');
-                        yearCell.textContent = year;
-
-                        const titleCell = document.createElement('td');
-                        titleCell.textContent = film.title;
-
-                        const coactorsCell = document.createElement('td');
-                        coactorsCell.textContent = film.coactors;
-
-                        row.appendChild(yearCell);
-                        row.appendChild(titleCell);
-                        row.appendChild(coactorsCell);
-                        tableBody.appendChild(row);
-                    });
-                });
-
-                table.style.display = 'table';
-
-                // === GRAFICO ===
-                const filmCountByYear = {};
-                films.forEach(film => {
-                    const year = film.year;
-                    filmCountByYear[year] = (filmCountByYear[year] || 0) + 1;
-                });
-
-                const dataArray = [['Año', 'Películas']];
-                for (const year in filmCountByYear) {
-                    dataArray.push([year, filmCountByYear[year]]);
+                    table.style.display = filmography.length ? 'table' : 'none';
+                    drawChart(filmography);
+                    chartDiv.style.display = filmography.length ? 'block' : 'none';
+                } else {
+                    setTimeout(waitForCharts, 100); // Reintentar hasta que esté cargado
                 }
+            };
 
-                const data = google.visualization.arrayToDataTable(dataArray);
-                const options = {
-                    title: 'Películas por Año',
-                    hAxis: { title: 'Año' },
-                    vAxis: { title: 'Cantidad de Películas' },
-                    legend: 'none'
-                };
-
-                const chart = new google.visualization.ColumnChart(chartDiv);
-                chart.draw(data, options);
-
-                chartDiv.style.display = 'block';
-            })
-            .catch(error => console.error('Error al obtener filmografía:', error));
+            waitForCharts();
+        }).catch(err => {
+            console.error('Error al cargar datos:', err);
+        });
     }
 
-    google.charts.load('current', { packages: ['corechart'] });
+    function getWikidataBioAndImage(actorName) {
+        return fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(actorName)}&language=es&format=json&origin=*`)
+            .then(res => res.json())
+            .then(data => {
+                const qid = data.search?.[0]?.id;
+                if (!qid) return { image: null, bio: 'Biografía no encontrada.' };
+
+                return fetch(`https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const entity = data.entities[qid];
+                        const claims = entity.claims;
+
+                        const image = claims.P18?.[0]?.mainsnak.datavalue?.value
+                            ? `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(claims.P18[0].mainsnak.datavalue.value)}`
+                            : null;
+
+                        const wikipediaTitle = entity.sitelinks?.eswiki?.title || entity.sitelinks?.enwiki?.title;
+                        if (!wikipediaTitle) return { image, bio: 'Biografía no disponible.' };
+
+                        return fetch(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikipediaTitle)}`)
+                            .then(res => res.json())
+                            .then(summary => {
+                                const bio = summary.extract || 'Sin biografía disponible.';
+                                return { image, bio };
+                            });
+                    });
+            })
+            .catch(err => {
+                console.error('Error en Wikidata:', err);
+                return { image: null, bio: 'Biografía no disponible.' };
+            });
+    }
+
+    function displayActorInfo(name, imageUrl, bio) {
+        document.getElementById('actor-name').textContent = name;
+        const img = document.getElementById('actor-image');
+        if (imageUrl) {
+            img.src = imageUrl;
+            img.style.display = 'block';
+        } else {
+            img.style.display = 'none';
+        }
+        document.getElementById('actor-bio').textContent = bio || 'No hay biografía disponible.';
+    }
+
+    function drawChart(filmography) {
+        const data = new google.visualization.DataTable();
+        data.addColumn('string', 'Año');
+        data.addColumn('number', 'Películas');
+
+        const yearCount = {};
+        filmography.forEach(f => {
+            yearCount[f.year] = (yearCount[f.year] || 0) + 1;
+        });
+
+        const chartData = Object.entries(yearCount).sort((a, b) => a[0] - b[0]);
+        data.addRows(chartData.map(([year, count]) => [year, count]));
+
+        const chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
+        chart.draw(data, {
+            title: 'Películas por Año',
+            legend: 'none',
+            hAxis: { title: 'Año' },
+            vAxis: { title: 'Cantidad' },
+            colors: ['#3366cc']
+        });
+    }
 });

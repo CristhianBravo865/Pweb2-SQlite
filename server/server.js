@@ -6,12 +6,9 @@ const path = require('path');
 const app = express();
 const PORT = 3000;
 
-//Para llamadas AJAX desde el cliente
 app.use(cors());
-//archivos estáticos desde "client"
 app.use(express.static(path.join(__dirname, '..', 'client')));
 
-//Ruta para obtener actores AHORA POR BUSQUEDA
 app.get('/search-actors', (req, res) => {
   const name = req.query.name || '';
   const db = new sqlite3.Database(path.join(__dirname, '..', 'imdb.db'));
@@ -31,11 +28,8 @@ app.get('/search-actors', (req, res) => {
       res.json(rows);
     }
   });
-  db.close();
-});
 
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  db.close();
 });
 
 app.get('/filmography/:actorId', (req, res) => {
@@ -67,3 +61,6 @@ app.get('/filmography/:actorId', (req, res) => {
   db.close();
 });
 
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});
