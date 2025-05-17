@@ -11,10 +11,20 @@ app.use(cors());
 //archivos estáticos desde "client"
 app.use(express.static(path.join(__dirname, '..', 'client')));
 
-//Ruta para obtener actores
-app.get('/actors', (req, res) => {
+//Ruta para obtener actores AHORA POR BUSQUEDA
+app.get('/search-actors', (req, res) => {
+  const name = req.query.name || '';
   const db = new sqlite3.Database(path.join(__dirname, '..', 'imdb.db'));
-  db.all('SELECT ActorId AS id, Name AS name FROM Actor LIMIT 50', [], (err, rows) => {
+
+  const query = `
+    SELECT ActorId AS id, Name AS name
+    FROM Actor
+    WHERE name LIKE ?
+    ORDER BY name
+    LIMIT 20
+  `;
+
+  db.all(query, [`%${name}%`], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
     } else {
