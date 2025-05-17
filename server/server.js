@@ -14,7 +14,7 @@ app.use(express.static(path.join(__dirname, '..', 'client')));
 //Ruta para obtener actores
 app.get('/actors', (req, res) => {
   const db = new sqlite3.Database(path.join(__dirname, '..', 'imdb.db'));
-  db.all('SELECT id, name FROM actors LIMIT 50', [], (err, rows) => {
+  db.all('SELECT ActorId AS id, Name AS name FROM Actor LIMIT 50', [], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
     } else {
