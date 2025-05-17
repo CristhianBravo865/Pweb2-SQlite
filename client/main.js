@@ -22,23 +22,40 @@ function getWikidataDetails(qid) {
         .then(data => {
             const entity = data.entities[qid];
             const claims = entity.claims;
-
+            // Imagen
             let image = null;
             if (claims.P18 && claims.P18[0]) {
                 const filename = claims.P18[0].mainsnak.datavalue.value;
                 image = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}`;
             }
-
-            let bio = null;
-            if (entity.descriptions && entity.descriptions.es) {
-                bio = entity.descriptions.es.value;
-            } else if (entity.descriptions && entity.descriptions.en) {
-                bio = entity.descriptions.en.value;
+            // Nombre
+            const label = entity.labels.es?.value || entity.labels.en?.value || '';
+            // Título del artículo en Wikipedia
+            const wikipediaTitle = entity.sitelinks?.eswiki?.title || entity.sitelinks?.enwiki?.title;
+            
+            if (wikipediaTitle) {
+                fetchWikipediaIntro(wikipediaTitle, image, label);
+            } else {
+                displayActorInfo(label, image, null);
             }
-
-            displayActorInfo(entity.labels.es?.value || entity.labels.en?.value || '', image, bio);
         })
         .catch(err => console.error('Error obteniendo datos Wikidata:', err));
+}
+
+
+function fetchWikipediaIntro(title, image, label) {
+    const url = `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            const extract = data.extract || 'No hay biografía disponible.';
+            displayActorInfo(label, image, extract);
+        })
+        .catch(err => {
+            console.error('Error obteniendo Wikipedia:', err);
+            displayActorInfo(label, image, null);
+        });
 }
 
 function displayActorInfo(name, image, bio) {
