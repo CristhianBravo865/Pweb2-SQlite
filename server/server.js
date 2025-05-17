@@ -33,14 +33,20 @@ app.get('/filmography/:actorId', (req, res) => {
   const db = new sqlite3.Database(path.join(__dirname, '..', 'imdb.db'));
 
   const query = `
-    SELECT M.Title AS title, M.Year AS year
+    SELECT 
+      M.Year AS year,
+      M.Title AS title,
+      GROUP_CONCAT(A2.Name, ', ') AS coactors
     FROM Movie M
-    JOIN Casting C ON M.MovieId = C.MovieId
-    WHERE C.ActorId = ?
+    JOIN Casting C1 ON M.MovieId = C1.MovieId
+    JOIN Casting C2 ON M.MovieId = C2.MovieId AND C2.ActorId != ?
+    JOIN Actor A2 ON C2.ActorId = A2.ActorId
+    WHERE C1.ActorId = ?
+    GROUP BY M.MovieId
     ORDER BY M.Year
   `;
 
-  db.all(query, [actorId], (err, rows) => {
+  db.all(query, [actorId, actorId], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
     } else {

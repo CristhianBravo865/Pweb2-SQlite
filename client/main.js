@@ -26,28 +26,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(films => {
                     //TABLA 
                     const tableBody = document.querySelector('#film-table tbody');
-                    tableBody.innerHTML = ''; // Limpiar tabla antes de agregar nuevos datos
+                    tableBody.innerHTML = ''; // Limpiar tabla existente
 
                     const filmsByYear = {};
                     films.forEach(film => {
                         if (!filmsByYear[film.year]) {
                             filmsByYear[film.year] = [];
                         }
-                        filmsByYear[film.year].push(film.title);
+                        filmsByYear[film.year].push({
+                            title: film.title,
+                            coactors: film.coactors || 'N/A'
+                        });
                     });
 
                     Object.keys(filmsByYear).sort().forEach(year => {
-                        const row = document.createElement('tr');
+                        filmsByYear[year].forEach(film => {
+                            const row = document.createElement('tr');
 
-                        const yearCell = document.createElement('td');
-                        yearCell.textContent = year;
+                            const yearCell = document.createElement('td');
+                            yearCell.textContent = year;
 
-                        const titlesCell = document.createElement('td');
-                        titlesCell.innerHTML = filmsByYear[year].join(', ');
+                            const titleCell = document.createElement('td');
+                            titleCell.textContent = film.title;
 
-                        row.appendChild(yearCell);
-                        row.appendChild(titlesCell);
-                        tableBody.appendChild(row);
+                            const coactorsCell = document.createElement('td');
+                            coactorsCell.textContent = film.coactors;
+
+                            row.appendChild(yearCell);
+                            row.appendChild(titleCell);
+                            row.appendChild(coactorsCell);
+                            tableBody.appendChild(row);
+                        });
                     });
 
                     table.style.display = 'table';
