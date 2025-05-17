@@ -27,3 +27,27 @@ app.get('/actors', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
+
+app.get('/filmography/:actorId', (req, res) => {
+  const actorId = req.params.actorId;
+  const db = new sqlite3.Database(path.join(__dirname, '..', 'imdb.db'));
+
+  const query = `
+    SELECT M.Title AS title, M.Year AS year
+    FROM Movie M
+    JOIN Casting C ON M.MovieId = C.MovieId
+    WHERE C.ActorId = ?
+    ORDER BY M.Year
+  `;
+
+  db.all(query, [actorId], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.json(rows);
+    }
+  });
+
+  db.close();
+});
+
