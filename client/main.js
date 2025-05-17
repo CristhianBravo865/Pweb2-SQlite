@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const select = document.getElementById('actor-select');
+    const table = document.getElementById('film-table');
+    const chartDiv = document.getElementById('chart_div');
 
     fetch('/actors')
         .then(response => response.json())
@@ -13,7 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(error => console.error('Error al cargar actores:', error));
 
-    // Cargar Google Charts
     google.charts.load('current', { packages: ['corechart'] });
     google.charts.setOnLoadCallback(() => {
         select.addEventListener('change', () => {
@@ -23,7 +24,35 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(`/filmography/${actorId}`)
                 .then(response => response.json())
                 .then(films => {
-                    // Agrupar por año
+                    //TABLA 
+                    const tableBody = document.querySelector('#film-table tbody');
+                    tableBody.innerHTML = ''; // Limpiar tabla antes de agregar nuevos datos
+
+                    const filmsByYear = {};
+                    films.forEach(film => {
+                        if (!filmsByYear[film.year]) {
+                            filmsByYear[film.year] = [];
+                        }
+                        filmsByYear[film.year].push(film.title);
+                    });
+
+                    Object.keys(filmsByYear).sort().forEach(year => {
+                        const row = document.createElement('tr');
+
+                        const yearCell = document.createElement('td');
+                        yearCell.textContent = year;
+
+                        const titlesCell = document.createElement('td');
+                        titlesCell.innerHTML = filmsByYear[year].join(', ');
+
+                        row.appendChild(yearCell);
+                        row.appendChild(titlesCell);
+                        tableBody.appendChild(row);
+                    });
+
+                    table.style.display = 'table';
+
+                    //GRAFICO
                     const filmCountByYear = {};
                     films.forEach(film => {
                         const year = film.year;
@@ -43,8 +72,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         legend: 'none'
                     };
 
-                    const chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
+                    const chart = new google.visualization.ColumnChart(chartDiv);
                     chart.draw(data, options);
+
+                    chartDiv.style.display = 'block';
                 })
                 .catch(error => console.error('Error al obtener filmografía:', error));
         });
