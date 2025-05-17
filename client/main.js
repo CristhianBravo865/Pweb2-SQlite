@@ -1,3 +1,58 @@
+function fetchWikidataInfo(actorName) {
+    const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(actorName)}&language=es&format=json&origin=*`;
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (data.search && data.search.length > 0) {
+                const qid = data.search[0].id;
+                getWikidataDetails(qid);
+            } else {
+                displayActorInfo(actorName, null, null);
+            }
+        })
+        .catch(err => console.error('Error en búsqueda Wikidata:', err));
+}
+
+function getWikidataDetails(qid) {
+    const url = `https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`;
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            const entity = data.entities[qid];
+            const claims = entity.claims;
+
+            let image = null;
+            if (claims.P18 && claims.P18[0]) {
+                const filename = claims.P18[0].mainsnak.datavalue.value;
+                image = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}`;
+            }
+
+            let bio = null;
+            if (entity.descriptions && entity.descriptions.es) {
+                bio = entity.descriptions.es.value;
+            } else if (entity.descriptions && entity.descriptions.en) {
+                bio = entity.descriptions.en.value;
+            }
+
+            displayActorInfo(entity.labels.es?.value || entity.labels.en?.value || '', image, bio);
+        })
+        .catch(err => console.error('Error obteniendo datos Wikidata:', err));
+}
+
+function displayActorInfo(name, image, bio) {
+    document.getElementById('actor-name').textContent = name;
+    const img = document.getElementById('actor-image');
+    if (image) {
+        img.src = image;
+        img.style.display = 'block';
+    } else {
+        img.style.display = 'none';
+    }
+    document.getElementById('actor-bio').textContent = bio || 'No hay biografía disponible.';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('actor-input');
     const suggestions = document.getElementById('actor-suggestions');
@@ -23,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         selectedActorId = actor.id;
                         suggestions.innerHTML = '';
                         loadFilmography(actor.id);
+                        fetchWikidataInfo(actor.name);
                     });
                     suggestions.appendChild(li);
                 });
